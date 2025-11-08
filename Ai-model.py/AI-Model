@@ -1,0 +1,81 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+import joblib
+
+# -------------------------------
+# 1. توليد بيانات وهمية (محاكاة)
+# -------------------------------
+np.random.seed(42)
+
+n = 300  # عدد المستخدمين
+ages = np.random.randint(18, 60, n)
+weights = np.random.randint(50, 100, n)  # بالكيلوغرام
+heights = np.random.randint(150, 190, n)  # بالسم
+activity_levels = np.random.choice(['low', 'medium', 'high'], n)
+goals = np.random.choice(['lose', 'maintain', 'gain'], n)
+
+# نحسب معدل الأيض الأساسي (BMR) تقريباً بمعادلة Mifflin-St Jeor
+bmr = 10 * weights + 6.25 * heights - 5 * ages + 5
+
+# نضيف معامل النشاط
+activity_factor = []
+for level in activity_levels:
+    if level == 'low':
+        activity_factor.append(1.2)
+    elif level == 'medium':
+        activity_factor.append(1.55)
+    else:
+        activity_factor.append(1.9)
+
+# نحسب السعرات التقريبية
+calories = bmr * np.array(activity_factor)
+
+# نعدّل السعرات حسب الهدف
+for i, goal in enumerate(goals):
+    if goal == 'lose':
+        calories[i] -= 400
+    elif goal == 'gain':
+        calories[i] += 400
+
+# نجمع الكل في DataFrame
+df = pd.DataFrame({
+    'age': ages,
+    'weight': weights,
+    'height': heights,
+    'activity_level': activity_levels,
+    'goal': goals,
+    'calories': calories
+})
+
+# نحول النصوص إلى أرقام
+df['activity_level'] = df['activity_level'].map({'low': 0, 'medium': 1, 'high': 2})
+df['goal'] = df['goal'].map({'lose': -1, 'maintain': 0, 'gain': 1})
+
+# -------------------------------
+# 2. تدريب نموذج بسيط
+# -------------------------------
+X = df[['age', 'weight', 'height', 'activity_level', 'goal']]
+y = df['calories']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+score = model.score(X_test, y_test)
+print(f"✅ Model trained successfully. Accuracy (R²): {score:.2f}")
+
+# -------------------------------
+# 3. حفظ النموذج والبيانات
+# -------------------------------
+df.to_csv("data.csv", index=False)
+joblib.dump(model, "model.pkl")
+
+print("✅ Data saved to data.csv")
+print("✅ Model saved to model.pkl")
+
+
+
+
