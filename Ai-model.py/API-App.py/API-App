@@ -1,0 +1,53 @@
+from fastapi import FastAPI
+from pydantic import BaseModel
+import joblib
+import pandas as pd
+
+# تحميل الموديل
+model = joblib.load("model.pkl")
+
+# إنشاء تطبيق FastAPI
+app = FastAPI(title="Calorie & Macros Recommendation API")
+
+# تعريف شكل البيانات اللي بيستقبلها الـ API
+class UserInput(BaseModel):
+    age: int
+    weight: float
+    height: float
+    activity_level: str  # low / medium / high
+    goal: str  # lose / maintain / gain
+
+# دالة لتحويل النصوص إلى أرقام (زي ما عملنا وقت التدريب)
+def preprocess_input(data: UserInput):
+    activity_map = {"low": 0, "medium": 1, "high": 2}
+    goal_map = {"lose": -1, "maintain": 0, "gain": 1}
+    df = pd.DataFrame([{
+        "age": data.age,
+        "weight": data.weight,
+        "height": data.height,
+        "activity_level": activity_map.get(data.activity_level, 1),
+        "goal": goal_map.get(data.goal, 0)
+    }])
+    return df
+
+# دالة لحساب الماكروز من السعرات
+def calculate_macros(calories, weight):
+    protein_g = weight * 1.6
+    fat_g = weight * 0.9
+    carbs_g = (calories - (protein_g * 4 + fat_g * 9)) / 4
+    return {"protein_g": round(protein_g, 1),
+            "carbs_g": round(carbs_g, 1),
+            "fat_g": round(fat_g, 1)}
+
+# نقطة الوصول الرئيسية
+@app.post("/recommend_macros")
+def recommend_macros(user: UserInput):
+    df = preprocess_input(user)
+    calories = model.predict(df)[0]
+    macros = calculate_macros(calories, user.weight)
+    return {
+        "recommended_calories": round(calories, 1),
+        **macros
+    }
+
+# لتشغيل السيرفر: uvicorn app:app --reload/
